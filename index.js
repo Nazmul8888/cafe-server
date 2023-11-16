@@ -36,10 +36,11 @@ async function run() {
 
     app.post('/jwt', async(req,res)=>{
       const user = req.body;
+      console.log(user,process.env.ACCESS_TOKEN_SECRET)
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET,{
         expiresIn:'1h'});
         res.send({token});
-    })
+    });
 
     // middleware 
 
@@ -61,11 +62,38 @@ async function run() {
       
     }
 
+    // verify token
+
+    const verifyAdmin = async(req,res,next)=>{
+      const email = req.decoded.email;
+      const query = {email: email};
+      const user = await userCollection.findOne(query);
+      const isAdmin = user?.role ==='admin';
+      if(!isAdmin){
+        return res.status(403).send({message: 'forbidden access '})
+      }
+      next();
+    }
+
     
     // users api related
-    app.get('/users', verifyToken, async(req,res)=>{
+    app.get('/users', verifyAdmin, verifyToken, async(req,res)=>{
       const result = await userCollection.find().toArray();
         res.send(result);
+    })
+
+    app.get('/user/admin/:email', verifyToken, async(req,res)=>{
+      const email = req.params.email;
+      if(email !== req.decoded.email){
+        return res.status(403).send({message:'unauthorized access'})
+      }
+      const query = {email: email};
+      const user = await userCollection.findOne(query);
+      let admin = false;
+      if(user){
+        admin = user?.role === 'admin';
+      }
+      res.send({admin}); 
     })
 
     app.post('/users', async(req,res)=>{
