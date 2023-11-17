@@ -77,12 +77,12 @@ async function run() {
 
     
     // users api related
-    app.get('/users', verifyAdmin, verifyToken, async(req,res)=>{
+    app.get('/users',verifyToken,verifyAdmin, async(req,res)=>{
       const result = await userCollection.find().toArray();
         res.send(result);
     })
 
-    app.get('/user/admin/:email', verifyToken, async(req,res)=>{
+    app.get('/users/admin/:email', verifyToken, async(req,res)=>{
       const email = req.params.email;
       if(email !== req.decoded.email){
         return res.status(403).send({message:'unauthorized access'})
@@ -137,6 +137,12 @@ async function run() {
     app.get('/menu', async(req,res)=>{
         const result = await menuCollection.find().toArray();
         res.send(result)
+    })
+
+    app.post('/menu', verifyToken, verifyAdmin, async(req,res)=>{
+      const item = req.body;
+      const result = await menuCollection.insertOne(item);
+      res.send(result)
     })
  
     app.get('/reviews', async(req,res)=>{
