@@ -36,7 +36,7 @@ async function run() {
 
     app.post('/jwt', async(req,res)=>{
       const user = req.body;
-      console.log(user,process.env.ACCESS_TOKEN_SECRET)
+      // console.log(user,process.env.ACCESS_TOKEN_SECRET)
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET,{
         expiresIn:'1h'});
         res.send({token});
@@ -45,13 +45,13 @@ async function run() {
     // middleware 
 
     const verifyToken = (req,res,next)=>{
-      console.log('inside verify token', req.headers.authorization);
+      // console.log('inside verify token', req.headers.authorization);
       if(!req.headers.authorization){
         return res.status(401).send({message: 'forbidden access '});
       }
 
       const token = req.headers.authorization.split(' ')[1];
-      console.log(token)
+      // console.log(token)
       jwt.verify(token, process.env.ACCESS_TOKEN_SECRET,(err, decoded) =>{
         if(err){
           return res.status(401).send({message: 'forbidden access'})
@@ -84,11 +84,13 @@ async function run() {
 
     app.get('/users/admin/:email', verifyToken, async(req,res)=>{
       const email = req.params.email;
+      console.log(email)
       if(email !== req.decoded.email){
         return res.status(403).send({message:'unauthorized access'})
       }
       const query = {email: email};
       const user = await userCollection.findOne(query);
+      console.log(user)
       let admin = false;
       if(user){
         admin = user?.role === 'admin';
@@ -144,6 +146,14 @@ async function run() {
       const result = await menuCollection.insertOne(item);
       res.send(result)
     })
+
+    app.delete('/menu/:id', verifyToken, verifyAdmin, async(req,res)=>{
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)};
+      const result = await menuCollection.deleteOne(query);
+      res.send(result);
+    })
+
  
     app.get('/reviews', async(req,res)=>{
         const result = await reviewsCollection.find().toArray();
