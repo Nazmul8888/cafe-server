@@ -1,9 +1,23 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config()
-var jwt = require('jsonwebtoken');
+const jwt = require('jsonwebtoken');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const app = express();
 const port = process.env.PORT || 5000;
+
+
+
+
+const corsOptions = {
+  origin: ['http://localhost:5173', 'http://localhost:5174'],
+  credentials: true,
+  optionSuccessStatus: 200,
+}
+
+
+app.use(cors(corsOptions))
+app.use(express.json())
 
 
 // cafeUser Tt1RNqNLALovoDY4
@@ -24,7 +38,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+   
 
 
     const userCollection = client.db("cafee").collection("users");
@@ -36,10 +50,10 @@ async function run() {
 
     app.post('/jwt', async(req,res)=>{
       const user = req.body;
-      // console.log(user,process.env.ACCESS_TOKEN_SECRET)
-      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET,{
-        expiresIn:'1h'});
-        res.send({token});
+      console.log(user,'user')
+      if(!user) return
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
+      res.send({ token });
     });
 
     // middleware 
@@ -84,13 +98,13 @@ async function run() {
 
     app.get('/users/admin/:email', verifyToken, async(req,res)=>{
       const email = req.params.email;
-      console.log(email)
+      // console.log(email)
       if(email !== req.decoded.email){
         return res.status(403).send({message:'unauthorized access'})
       }
       const query = {email: email};
       const user = await userCollection.findOne(query);
-      console.log(user)
+      // console.log(user)
       let admin = false;
       if(user){
         admin = user?.role === 'admin';
@@ -100,7 +114,8 @@ async function run() {
 
     app.post('/users', async(req,res)=>{
       const user = req.body;
-      const query = {email: user.email}
+      console.log(user, 'safe')
+      const query = {email: user?.email}
       const existingUser = await userCollection.findOne(query);
       if(existingUser){
         return res.send({message:'user already exist ', insertedId: null})
@@ -138,6 +153,8 @@ async function run() {
        // menu related api
     app.get('/menu', async(req,res)=>{
         const result = await menuCollection.find().toArray();
+      //   console.log(result)
+      //  console.log( 'this is')
         res.send(result)
     })
 
@@ -146,6 +163,26 @@ async function run() {
       const result = await menuCollection.insertOne(item);
       res.send(result)
     })
+    // update
+
+    app.patch('/menu/:id', async (req, res) => {
+      const item = req.body;
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) }
+      const updatedDoc = {
+        $set: {
+          name: item.name,
+          category: item.category,
+          price: item.price,
+          recipe: item.recipe,
+          image: item.image
+        }
+      }
+
+      const result = await menuCollection.updateOne(filter, updatedDoc)
+      res.send(result);
+    })
+
 
     app.delete('/menu/:id', verifyToken, verifyAdmin, async(req,res)=>{
       const id = req.params.id;
@@ -182,6 +219,23 @@ async function run() {
       const result = await cartCollection.deleteOne(query);
       res.send(result);
     })
+
+    // payment intent 
+    app.post('/create-payment-intent', async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+      console.log(amount, 'amount inside the intent')
+
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
+        payment_method_types: ['card']
+      });
+
+      res.send({
+        clientSecret: paymentIntent.client_secret
+      })
+    });
  
 
 
