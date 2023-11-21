@@ -257,7 +257,71 @@ async function run() {
       const deleteResult = await cartCollection.deleteMany(query);
 
       res.send({paymentResult, deleteResult});
+    });
+
+    // analytics system
+
+    app.get('/admin-stats', async(req,res)=>{
+      const users = await userCollection.estimatedDocumentCount();
+      const menuItems = await menuCollection.estimatedDocumentCount();
+      const orders = await paymentCollection.estimatedDocumentCount();
+      // this is no best way
+      // const payments = await paymentCollection.find().toArray();
+      // const revenue = payments.reduce((total,payment)=> total + payment.price, 0)
+
+      const result = await paymentCollection.aggregate([
+        {
+          $group:{
+            _id: null,
+            totalRevenue:{
+              $sum: '$price'
+            }
+          }
+        }
+       
+      ]).toArray();
+      const revenue = result.length > 0 ? result[0].totalRevenue : 0;
+      res.send({
+        users,
+        menuItems,
+        orders,
+        revenue
+      })
     })
+
+
+    // how to aggregate
+
+   app.get('/orders-stats',async (req,res)=>{
+    const result = await paymentCollection.aggregate([
+      {
+        $unwind: '$menuItemIds'
+      },
+      {
+        $lookup:{
+          from: 'menu',
+          localField: 'menuItemIds',
+          foreignField: '_id',
+          as: 'menuItems'
+
+        }
+      },
+      {
+        $unwind: '$menuItems'
+      },
+      {
+        $group: {
+          _id: '$menuItems.category',
+          quantity: {$sum:1},
+          revenue: {$sum:'$menuItems.price'}
+        }
+      }
+
+    ]).toArray();
+    res.send(result);
+   })
+     
+        
  
 
 
